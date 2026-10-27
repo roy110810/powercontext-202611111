@@ -243,6 +243,7 @@ class PydanticAIStructuredGenerator(Generic[InputT, OutputT]):
         if not instructions.strip():
             raise PydanticAIConfigurationError("instructions")
         self._limits = InferenceLimits() if limits is None else limits
+        self._receipt_model = model
         self._input_type = input_type
         self._prompt_key = prompt_key
         try:
@@ -253,6 +254,7 @@ class PydanticAIStructuredGenerator(Generic[InputT, OutputT]):
                     model_settings,
                     ModelSettings(max_tokens=self._limits.max_output_tokens_per_request),
                 )
+            self._receipt_settings = merge_model_settings(model.settings, bounded_settings)
             self._agent = Agent(
                 model if self._limits.allow_continuations else _CompleteResponseModel(model),
                 deps_type=input_type,
@@ -276,6 +278,27 @@ class PydanticAIStructuredGenerator(Generic[InputT, OutputT]):
                 return output
 
             self._agent.output_validator(check)
+
+    def receipt_configuration(self) -> dict[str, object]:
+        """Report the bound model and effective non-content controls for receipt validation."""
+        model_name = getattr(self._receipt_model, "model_name", None)
+        system = getattr(self._receipt_model, "system", None)
+        if not isinstance(model_name, str) or not isinstance(system, str):
+            raise TypeError("rerank model identity unavailable")  # noqa: TRY003
+        return {
+            "model": f"{system}:{model_name}",
+            "effective_settings": {
+                **(self._receipt_settings or {}),
+                "allow_continuations": self._limits.allow_continuations,
+                **(
+                    {"output_tokens_limit": self._limits.output_tokens_limit}
+                    if self._limits.output_tokens_limit is not None
+                    else {}
+                ),
+            },
+            "timeout_seconds": self._limits.timeout_seconds,
+            "max_requests": self._limits.max_requests,
+        }
 
     async def generate(self, value: InputT, /) -> GenerationResult[OutputT]:
         """Generate one structured value within the configured request and time limits."""

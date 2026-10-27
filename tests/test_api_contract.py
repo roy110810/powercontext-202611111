@@ -538,22 +538,23 @@ def test_prepared_context_is_a_generic_typed_operation_outside_the_mcp_memory_to
         "assembly",
         "bootstrap_receipt_id",
         "include_code",
-        "explain",
+        "include_receipt",
     }
     assert set(schemas["PreparedContext"]["properties"]) == {
         "schema",
         "status",
         "content",
         "content_bytes",
-        "reason",
+        "receipt",
     }
-    # ``reason`` is a cause code, not a retrieval result: it must stay out of the ban below while
-    # remaining optional, so a Host written before it existed still validates an injected response.
-    assert "reason" not in schemas["PreparedContext"]["required"]
-    assert schemas["PreparedContext"]["properties"]["reason"]["nullable"] is True
-    # ``explain`` is how a caller asks for it, so the default stays the four-field envelope.
-    assert schemas["PrepareContextRequest"]["properties"]["explain"]["default"] is False
-    assert "explain" not in schemas["PrepareContextRequest"]["required"]
+    assert "receipt" not in schemas["PreparedContext"]["required"]
+    assert schemas["PreparedContext"]["properties"]["receipt"]["$ref"] == "#/components/schemas/PreparedContextReceipt"
+    assert schemas["PrepareContextRequest"]["properties"]["include_receipt"]["default"] is False
+    assert "include_receipt" not in schemas["PrepareContextRequest"]["required"]
+    assert schemas["PreparedContextReceipt"]["properties"]["selected"]["maxItems"] == 32
+    assert schemas["PreparedContextReceipt"]["properties"]["retrieval"]["$ref"] == (
+        "#/components/schemas/PreparedContextRetrieval"
+    )
     assert not {"memory", "mode", "selection"} & set(schemas["PreparedContext"]["properties"])
 
 
